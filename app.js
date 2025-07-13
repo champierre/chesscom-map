@@ -537,24 +537,22 @@ document.getElementById('fetchButton').addEventListener('click', async () => {
             `総対戦数: ${games.length}ゲーム`
         );
         
-        // 統計情報を表示
-        document.getElementById('countryCount').textContent = countries.size;
-        document.getElementById('totalGames').textContent = games.length;
-        stats.classList.remove('hidden');
+        // 新規データ取得後、既存データと合わせて地図を更新
+        updateLoadingStatus(
+            '既存データと合併中...',
+            `新規取得データ: ${countries.size}カ国`,
+            '全データを地図に反映中...'
+        );
         
-        // 地図に国を塗る
-        addCountriesToMap(countries);
+        // 既存データを再読み込みして最新状態で地図を更新
+        await updateMapWithAllData();
         
         // 最終処理中のローディング状態更新
         updateLoadingStatus(
-            '国リストを作成中...',
-            `処理完了まであと少し...`,
+            '処理完了',
+            `データ取得が完了しました`,
             ''
         );
-        
-        // 国リストを表示
-        displayCountryList(countries);
-        countryList.classList.remove('hidden');
         
     } catch (err) {
         error.textContent = `エラー: ${err.message}`;
@@ -656,8 +654,75 @@ function loadUsername() {
     }
 }
 
+// 既存データを読み込んで地図に表示
+async function loadExistingDataAndDisplay() {
+    try {
+        const response = await fetch('/api/existing-data');
+        const data = await response.json();
+        
+        if (data.countries && data.countries.length > 0) {
+            const countries = new Map(data.countries);
+            
+            // 統計を更新
+            updateStats(countries);
+            
+            // 地図に表示
+            addCountriesToMap(countries);
+            
+            // 国リストを表示
+            displayCountryList(countries);
+            
+            console.log(`既存データを読み込みました: ${countries.size}カ国, ${Array.from(countries.values()).reduce((a, b) => a + b, 0)}ゲーム`);
+        }
+    } catch (error) {
+        console.log('既存データの読み込みに失敗しました:', error);
+    }
+}
+
+// 全データで地図とUIを更新する関数
+async function updateMapWithAllData() {
+    try {
+        // 既存の地図レイヤーをクリア
+        countryLayers.forEach(layer => map.removeLayer(layer));
+        countryLayers = [];
+        
+        // 既存データを再読み込み
+        const response = await fetch('/api/existing-data');
+        const data = await response.json();
+        
+        if (data.countries && data.countries.length > 0) {
+            const countries = new Map(data.countries);
+            
+            // 統計を更新
+            updateStats(countries);
+            
+            // 地図に表示
+            addCountriesToMap(countries);
+            
+            // 国リストを表示
+            displayCountryList(countries);
+            document.getElementById('countryList').classList.remove('hidden');
+            
+            console.log(`全データを更新しました: ${countries.size}カ国, ${Array.from(countries.values()).reduce((a, b) => a + b, 0)}ゲーム`);
+        }
+    } catch (error) {
+        console.error('全データの更新に失敗しました:', error);
+    }
+}
+
+// 統計情報を更新する関数
+function updateStats(countries) {
+    const totalGames = Array.from(countries.values()).reduce((a, b) => a + b, 0);
+    document.getElementById('countryCount').textContent = countries.size;
+    document.getElementById('totalGames').textContent = totalGames;
+    document.getElementById('stats').classList.remove('hidden');
+}
+
 // 初期化
-initMap().catch(error => {
+initMap().then(() => {
+    // 地図初期化後に既存データを読み込み
+    loadExistingDataAndDisplay();
+}).catch(error => {
     console.error('Map initialization failed:', error);
 });
 

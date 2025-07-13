@@ -386,6 +386,120 @@ async function extractOpponentCountries(games: any[], username: string) {
   return countries;
 }
 
+// 既存データを読み込む関数
+async function loadExistingData(): Promise<Map<string, number>> {
+  const countries = new Map<string, number>();
+  
+  try {
+    // archivesディレクトリ内の全てのファイルを読み込み
+    const archivesDir = join(DATA_DIR, "archives");
+    const playersDir = join(DATA_DIR, "players");
+    
+    // アーカイブファイルから全ゲームデータを収集
+    const allGames: any[] = [];
+    
+    try {
+      for await (const dirEntry of Deno.readDir(archivesDir)) {
+        if (dirEntry.isFile && dirEntry.name.endsWith('.json')) {
+          try {
+            const filePath = join(archivesDir, dirEntry.name);
+            const content = await Deno.readTextFile(filePath);
+            const archiveData = JSON.parse(content);
+            
+            if (archiveData.data && archiveData.data.games) {
+              allGames.push(...archiveData.data.games);
+            }
+          } catch (error) {
+            console.error(`Error reading archive file ${dirEntry.name}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error reading archives directory:', error);
+    }
+    
+    if (allGames.length === 0) {
+      return countries;
+    }
+    
+    // ユーザー名を推定（最初のアーカイブファイルから）
+    let username = '';
+    try {
+      for await (const dirEntry of Deno.readDir(archivesDir)) {
+        if (dirEntry.isFile && dirEntry.name.endsWith('.json')) {
+          const match = dirEntry.name.match(/^(.+)_\d{4}_\d{2}\.json$/);
+          if (match) {
+            username = match[1];
+            break;
+          }
+        }
+      }
+    } catch (error) {
+      // ユーザー名が取得できない場合は空のMapを返す
+      return countries;
+    }
+    
+    if (!username) {
+      return countries;
+    }
+    
+    // 対戦相手を収集
+    const opponents = new Set<string>();
+    for (const game of allGames) {
+      if (game.white && game.black) {
+        if (game.white.username && game.white.username.toLowerCase() === username.toLowerCase()) {
+          opponents.add(game.black.username);
+        } else if (game.black.username && game.black.username.toLowerCase() === username.toLowerCase()) {
+          opponents.add(game.white.username);
+        }
+      }
+    }
+    
+    // プレイヤーの国情報を読み込み
+    for (const opponentUsername of opponents) {
+      try {
+        const dataKey = `player-${opponentUsername}`;
+        const playerData = await storage.get(dataKey);
+        
+        if (playerData && playerData.country) {
+          let countryCode;
+          if (typeof playerData.country === 'string') {
+            const parts = playerData.country.split('/');
+            countryCode = parts[parts.length - 1];
+          } else {
+            countryCode = playerData.country;
+          }
+          
+          if (countryCode && countryCode.length === 2) {
+            countryCode = countryCode.toUpperCase();
+            
+            // この対戦相手との対戦数を計算
+            let gameCount = 0;
+            for (const game of allGames) {
+              if ((game.white?.username?.toLowerCase() === username.toLowerCase() && 
+                   game.black?.username?.toLowerCase() === opponentUsername.toLowerCase()) ||
+                  (game.black?.username?.toLowerCase() === username.toLowerCase() && 
+                   game.white?.username?.toLowerCase() === opponentUsername.toLowerCase())) {
+                gameCount++;
+              }
+            }
+            
+            const existingCount = countries.get(countryCode) || 0;
+            countries.set(countryCode, existingCount + gameCount);
+          }
+        }
+      } catch (error) {
+        console.error(`Error loading player data for ${opponentUsername}:`, error);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error loading existing data:', error);
+  }
+  
+  return countries;
+}
+
 // HTTPハンドラー
 async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -501,6 +615,30 @@ async function handler(req: Request): Promise<Response> {
     } catch (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
+  }
+  
+  if (url.pathname === "/api/existing-data") {
+    try {
+      const countries = await loadExistingData();
+      return new Response(JSON.stringify({
+        countries: Array.from(countries.entries())
+      }), {
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ 
+        countries: [],
+        error: error.message 
+      }), {
         headers: { 
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*"

@@ -79,11 +79,6 @@
       "jsr:@std/fs@1",
       "jsr:@std/http@1",
       "jsr:@std/path@1"
-    ],
-    "packageJson": {
-      "dependencies": [
-        "npm:vibelogger@0.1"
-      ]
-    }
+    ]
   }
 }
