@@ -344,7 +344,10 @@ function addCountriesToMap(countries) {
                         <div class="popup-country">${countryInfo.name}</div>
                         <div class="popup-games">${count} ゲーム</div>
                     </div>
-                `).addTo(map);
+                `).on('click', () => {
+                    // 地図上の国をクリックした時にマーカーを表示
+                    addPinToCountry(countryCode, count, countryInfo);
+                }).addTo(map);
                 
                 countryLayers.push(layer);
             }
