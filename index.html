@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess.com 対戦相手の国マップ</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div class="container">
+        <h1>Chess.com 対戦相手の国マップ</h1>
+        <div class="input-section">
+            <div class="input-row">
+                <label for="username">Chess.com ユーザーID:</label>
+                <input type="text" id="username" placeholder="ユーザーIDを入力">
+            </div>
+        </div>
+        <div id="loading" class="loading hidden">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">
+                <div id="loadingStatus">データを読み込み中...</div>
+                <div id="loadingDetails" class="loading-details"></div>
+                <div id="loadingProgress" class="loading-progress"></div>
+            </div>
+        </div>
+        <div id="error" class="error hidden"></div>
+        <div id="periodSelection" class="period-selection hidden">
+            <h3>期間選択</h3>
+            <div class="period-selection-header">
+                <label>
+                    <input type="checkbox" id="selectAllPeriods"> 全て選択/解除
+                </label>
+                <span class="period-count">全<span id="totalPeriods">0</span>期間</span>
+            </div>
+            <div id="periodsList" class="periods-list"></div>
+            <div class="fetch-button-container">
+                <button id="fetchButton">データを取得</button>
+            </div>
+        </div>
+        <div id="stats" class="stats hidden">
+            <p>対戦した国の数: <span id="countryCount">0</span></p>
+            <p>総対戦数: <span id="totalGames">0</span></p>
+        </div>
+        <div id="map"></div>
+        <div id="countryList" class="country-list hidden">
+            <h3>対戦相手の国一覧</h3>
+            <ul id="countries"></ul>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
