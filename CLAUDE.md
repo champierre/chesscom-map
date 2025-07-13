@@ -1,48 +1,45 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with
+code in this repository.
 
 ## Project Overview
 
-This is a new JavaScript project related to Chess.com functionality. The project is currently uninitialized and requires setup.
+This is a Deno TypeScript project that visualizes Chess.com game opponents on a world map. The project fetches Chess.com game archives and displays opponent countries with interactive mapping.
 
 ## Project Status
 
-**Important**: This project is brand new and has not been initialized. Before starting development:
-
-1. Initialize the project with `npm init` or `yarn init`
-2. Set up version control with `git init`
-3. Install necessary dependencies based on the specific requirements
+**Complete**: This project is fully implemented and functional as a Deno application.
 
 ## Development Context
 
-This project is part of a collection of chess-related projects in the parent directory, including:
+This project is part of a collection of chess-related projects in the parent
+directory, including:
+
 - `chess/` - A larger established project
 - `claude-chess/` - Another chess project
 - `gpt-chess/` - Additional chess-related project
 
-Consider examining these sibling projects for patterns and conventions that might be relevant.
-
 ## Common Development Tasks
 
-Since this is an uninitialized project, common tasks will need to be established after initial setup. Typical JavaScript project commands would include:
-
-- `npm install` or `yarn install` - Install dependencies (after package.json is created)
-- `npm run dev` or `yarn dev` - Start development server (needs configuration)
-- `npm test` or `yarn test` - Run tests (requires test framework setup)
-- `npm run lint` or `yarn lint` - Run linting (requires ESLint setup)
-- `npm run build` or `yarn build` - Build for production (needs build configuration)
+- `deno task dev` - Start development server with file watching
+- `deno task start` - Start production server
+- `deno lint` - Run code linting
+- `deno fmt` - Format code
+- `deno run --allow-net --allow-read --allow-write server.ts` - Manual server start
 
 ## Architecture Notes
 
-The project structure will depend on its specific purpose. Based on the name "chesscom-map", this might involve:
-- Chess.com API integration
-- Data visualization or mapping functionality
-- Game analysis or player statistics
+The project uses:
 
-Future architecture decisions should be documented here as the project develops.
+- **Backend**: Deno + TypeScript server with Chess.com API integration
+- **Frontend**: Vanilla JavaScript with Leaflet.js for interactive world map
+- **Data Storage**: Local JSON files with hierarchical organization
+- **API**: Chess.com Public API for game archives and player data
 
-### Project Logging
-* Use vibelogger library for all logging needs
-* vibelogger instruction: https://github.com/fladdict/vibe-logger/blob/main/README.md
-* Check ./logs/<project_name>/ folder for debugging data when issues occur
+Key features:
+- Command-line username input on server startup
+- Automatic loading of existing data
+- Interactive world map with country markers and popups
+- Comprehensive support for Chess.com special country codes (XE, XS, XW, etc.)
+- Efficient caching and data management
