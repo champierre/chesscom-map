@@ -361,6 +361,7 @@ async function extractOpponentCountries(games: any[], username: string) {
       if (countryCode && countryCode.length === 2) {
         countryCode = countryCode.toUpperCase();
         
+        
         let gameCount = 0;
         for (const game of games) {
           if ((game.white?.username?.toLowerCase() === username.toLowerCase() && 
