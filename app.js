@@ -216,6 +216,58 @@ const countryCoordinates = {
     name: "セントクリストファー・ネイビス",
   },
   "BS": { lat: 25.0343, lng: -77.3963, name: "バハマ" },
+  // 追加の国（よく見つからない国コード）
+  "AG": { lat: 17.0608, lng: -61.7964, name: "アンティグア・バーブーダ" },
+  "AI": { lat: 18.2206, lng: -63.0686, name: "アンギラ" },
+  "AO": { lat: -11.2027, lng: 17.8739, name: "アンゴラ" },
+  "AS": { lat: -14.2710, lng: -170.1322, name: "アメリカ領サモア" },
+  "BF": { lat: 12.2383, lng: -1.5616, name: "ブルキナファソ" },
+  "BJ": { lat: 9.3077, lng: 2.3158, name: "ベナン" },
+  "BN": { lat: 4.5353, lng: 114.7277, name: "ブルネイ" },
+  "BO": { lat: -16.2902, lng: -63.5887, name: "ボリビア" },
+  "BT": { lat: 27.5142, lng: 90.4336, name: "ブータン" },
+  "CG": { lat: -0.2280, lng: 15.8277, name: "コンゴ共和国" },
+  "CI": { lat: 7.5400, lng: -5.5471, name: "コートジボワール" },
+  "CR": { lat: 9.7489, lng: -83.7534, name: "コスタリカ" },
+  "CU": { lat: 21.5218, lng: -77.7812, name: "キューバ" },
+  "CV": { lat: 16.0020, lng: -24.0132, name: "カーボベルデ" },
+  "DO": { lat: 18.7357, lng: -70.1627, name: "ドミニカ共和国" },
+  "DZ": { lat: 28.0339, lng: 1.6596, name: "アルジェリア" },
+  "ET": { lat: 9.1450, lng: 40.4897, name: "エチオピア" },
+  "EU": { lat: 50.8503, lng: 4.3517, name: "欧州連合" },
+  "GG": { lat: 49.4658, lng: -2.5854, name: "ガーンジー" },
+  "GP": { lat: 16.2650, lng: -61.5510, name: "グアドループ" },
+  "GT": { lat: 15.7835, lng: -90.2308, name: "グアテマラ" },
+  "HN": { lat: 15.2000, lng: -86.2419, name: "ホンジュラス" },
+  "HT": { lat: 18.9712, lng: -72.2852, name: "ハイチ" },
+  "IM": { lat: 54.2361, lng: -4.5481, name: "マン島" },
+  "JM": { lat: 18.1096, lng: -77.2975, name: "ジャマイカ" },
+  "KH": { lat: 12.5657, lng: 104.9910, name: "カンボジア" },
+  "XK": { lat: 42.6026, lng: 20.9030, name: "コソボ" },
+  "LY": { lat: 26.3351, lng: 17.2283, name: "リビア" },
+  "MC": { lat: 43.7384, lng: 7.4246, name: "モナコ" },
+  "MG": { lat: -18.7669, lng: 46.8691, name: "マダガスカル" },
+  "MM": { lat: 21.9162, lng: 95.9560, name: "ミャンマー" },
+  "MU": { lat: -20.3484, lng: 57.5522, name: "モーリシャス" },
+  "MV": { lat: 3.2028, lng: 73.2207, name: "モルディブ" },
+  "MW": { lat: -13.2543, lng: 34.3015, name: "マラウイ" },
+  "NE": { lat: 17.6078, lng: 8.0817, name: "ニジェール" },
+  "NP": { lat: 28.3949, lng: 84.1240, name: "ネパール" },
+  "PR": { lat: 18.2208, lng: -66.5901, name: "プエルトリコ" },
+  "PW": { lat: 7.5150, lng: 134.5825, name: "パラオ" },
+  "PY": { lat: -23.4425, lng: -58.4438, name: "パラグアイ" },
+  "SD": { lat: 12.8628, lng: 30.2176, name: "スーダン" },
+  "SN": { lat: 14.4974, lng: -14.4524, name: "セネガル" },
+  "SO": { lat: 5.1521, lng: 46.1996, name: "ソマリア" },
+  "SV": { lat: 13.7942, lng: -88.8965, name: "エルサルバドル" },
+  "TN": { lat: 33.8869, lng: 9.5375, name: "チュニジア" },
+  "TZ": { lat: -6.3690, lng: 34.8888, name: "タンザニア" },
+  "VA": { lat: 41.9029, lng: 12.4534, name: "バチカン市国" },
+  "WS": { lat: -13.7590, lng: -172.1046, name: "サモア" },
+  "XA": { lat: 31.9522, lng: 35.2332, name: "パレスチナ地域" },
+  "XX": { lat: 0, lng: 0, name: "不明な国" },
+  "ZM": { lat: -13.1339, lng: 27.8493, name: "ザンビア" },
+  "ZW": { lat: -19.0154, lng: 29.1549, name: "ジンバブエ" },
 };
 
 // グローバル変数
@@ -699,6 +751,10 @@ function clearClickMarkers() {
 function displayCountryList(countries) {
   const countriesList = document.getElementById("countries");
 
+  // 既存の警告を削除
+  const existingWarnings = document.querySelectorAll(".missing-countries-warning");
+  existingWarnings.forEach(warning => warning.remove());
+
   countriesList.innerHTML = "";
 
   // 国を対戦数でソート
@@ -706,9 +762,19 @@ function displayCountryList(countries) {
     b[1] - a[1]
   );
 
+  // デバッグ: countryCoordinatesに存在しない国をログ出力
+  const missingCountries = [];
+  let includedCount = 0;
+
   sortedCountries.forEach(([countryCode, count]) => {
     const countryInfo = countryCoordinates[countryCode];
-    if (!countryInfo) return;
+    if (!countryInfo) {
+      missingCountries.push({ code: countryCode, count: count });
+      console.log(`Missing country in countryCoordinates: ${countryCode} (${count} games)`);
+      return;
+    }
+
+    includedCount++;
 
     // リスト表示用
     const li = document.createElement("li");
@@ -727,6 +793,41 @@ function displayCountryList(countries) {
 
     countriesList.appendChild(li);
   });
+
+  // デバッグ情報をコンソールに出力
+  console.log(`Total countries in data: ${countries.size}`);
+  console.log(`Countries displayed in list: ${includedCount}`);
+  console.log(`Countries missing from countryCoordinates: ${missingCountries.length}`);
+  
+  // デバッグ情報を詳しく表示
+  console.log(`=== 国一覧表示の統計 ===`);
+  console.log(`総国数: ${sortedCountries.length}`);
+  console.log(`表示した国数: ${includedCount}`);
+  console.log(`除外された国数: ${missingCountries.length}`);
+  
+  if (missingCountries.length > 0) {
+    console.warn("Missing countries details:", missingCountries);
+    
+    // テーブル形式で除外された国を表示
+    console.table(missingCountries);
+    
+    // 除外された国をコードと対戦数で詳しく表示
+    const totalExcludedGames = missingCountries.reduce((sum, c) => sum + c.count, 0);
+    console.log(`除外された対戦数合計: ${totalExcludedGames}`);
+    
+    // 画面上にも警告を表示
+    const warningDiv = document.createElement("div");
+    warningDiv.className = "missing-countries-warning";
+    warningDiv.style.cssText = "background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin: 10px 0; border-radius: 5px;";
+    warningDiv.innerHTML = `
+      <strong>警告:</strong> ${missingCountries.length}カ国（${totalExcludedGames}対戦）が countryCoordinates に定義されていないため表示されていません:<br>
+      ${missingCountries.map(c => `${c.code} (${c.count}ゲーム)`).join(", ")}<br>
+      <small>詳細はブラウザのコンソールを確認してください</small>
+    `;
+    countriesList.parentNode.insertBefore(warningDiv, countriesList);
+  } else {
+    console.log("✅ 全ての国が正常に表示されています");
+  }
 }
 
 // ローディング状態を更新する関数
@@ -1016,6 +1117,52 @@ function updateStats(countries) {
   document.getElementById("stats").classList.remove("hidden");
 }
 
+// デバッグ: countryCoordinatesに存在しない国コードを確認する関数
+async function findMissingCountryCodes() {
+  try {
+    const response = await fetch("/api/existing-data");
+    const data = await response.json();
+    
+    if (data.countries && data.countries.length > 0) {
+      const countries = new Map(data.countries);
+      const missingCodes = [];
+      const existingCodes = [];
+      
+      for (const [countryCode, count] of countries) {
+        if (countryCoordinates[countryCode]) {
+          existingCodes.push({ code: countryCode, count });
+        } else {
+          missingCodes.push({ code: countryCode, count });
+        }
+      }
+      
+      console.log("\n=== COUNTRY COORDINATES DEBUG ===");
+      console.log(`Total countries in data: ${countries.size}`);
+      console.log(`Countries with coordinates: ${existingCodes.length}`);
+      console.log(`Countries missing coordinates: ${missingCodes.length}`);
+      
+      if (missingCodes.length > 0) {
+        console.log("\nMissing country codes (with game counts):");
+        missingCodes.sort((a, b) => b.count - a.count).forEach(({code, count}) => {
+          console.log(`  ${code}: ${count} games`);
+        });
+        
+        console.log("\nTo add these countries, add to countryCoordinates object:");
+        missingCodes.forEach(({code}) => {
+          console.log(`  "${code}": { lat: 0, lng: 0, name: "Country Name for ${code}" },`);
+        });
+      }
+      
+      console.log("=== END DEBUG ===\n");
+      
+      return missingCodes;
+    }
+  } catch (error) {
+    console.error("Error in findMissingCountryCodes:", error);
+  }
+  return [];
+}
+
 // 初期化
 initMap().then(async () => {
   // 地図初期化後にユーザー名と既存データを読み込み
@@ -1026,6 +1173,9 @@ initMap().then(async () => {
   if (currentUsername) {
     await displayPeriodSelection();
   }
+  
+  // デバッグ: 不足している国コードを確認
+  await findMissingCountryCodes();
 }).catch((error) => {
   console.error("Map initialization failed:", error);
 });
