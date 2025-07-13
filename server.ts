@@ -5,6 +5,9 @@ import { ensureDir } from "@std/fs";
 const DATA_DIR = "./data";
 const STATIC_DIR = "./static";
 
+// グローバル変数：起動時に入力されたユーザー名
+let CURRENT_USERNAME = "";
+
 // データディレクトリを確保
 await ensureDir(DATA_DIR);
 await ensureDir(join(DATA_DIR, "archives"));
@@ -386,6 +389,99 @@ async function extractOpponentCountries(games: any[], username: string) {
   return countries;
 }
 
+// 特定ユーザーの既存データを読み込む関数
+async function loadExistingDataForUser(targetUsername: string): Promise<Map<string, number>> {
+  const countries = new Map<string, number>();
+  
+  try {
+    const archivesDir = join(DATA_DIR, "archives");
+    const allGames: any[] = [];
+    
+    // 指定されたユーザーのアーカイブファイルのみを読み込み
+    try {
+      for await (const dirEntry of Deno.readDir(archivesDir)) {
+        if (dirEntry.isFile && dirEntry.name.endsWith('.json')) {
+          const match = dirEntry.name.match(/^(.+)_\d{4}_\d{2}\.json$/);
+          if (match && match[1].toLowerCase() === targetUsername.toLowerCase()) {
+            try {
+              const filePath = join(archivesDir, dirEntry.name);
+              const content = await Deno.readTextFile(filePath);
+              const archiveData = JSON.parse(content);
+              
+              if (archiveData.data && archiveData.data.games) {
+                allGames.push(...archiveData.data.games);
+              }
+            } catch (error) {
+              console.error(`Error reading archive file ${dirEntry.name}:`, error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error reading archives directory:', error);
+    }
+    
+    if (allGames.length === 0) {
+      return countries;
+    }
+    
+    // 対戦相手を収集
+    const opponents = new Set<string>();
+    for (const game of allGames) {
+      if (game.white && game.black) {
+        if (game.white.username && game.white.username.toLowerCase() === targetUsername.toLowerCase()) {
+          opponents.add(game.black.username);
+        } else if (game.black.username && game.black.username.toLowerCase() === targetUsername.toLowerCase()) {
+          opponents.add(game.white.username);
+        }
+      }
+    }
+    
+    // プレイヤーの国情報を読み込み
+    for (const opponentUsername of opponents) {
+      try {
+        const dataKey = `player-${opponentUsername}`;
+        const playerData = await storage.get(dataKey);
+        
+        if (playerData && playerData.country) {
+          let countryCode;
+          if (typeof playerData.country === 'string') {
+            const parts = playerData.country.split('/');
+            countryCode = parts[parts.length - 1];
+          } else {
+            countryCode = playerData.country;
+          }
+          
+          if (countryCode && countryCode.length === 2) {
+            countryCode = countryCode.toUpperCase();
+            
+            // この対戦相手との対戦数を計算
+            let gameCount = 0;
+            for (const game of allGames) {
+              if ((game.white?.username?.toLowerCase() === targetUsername.toLowerCase() && 
+                   game.black?.username?.toLowerCase() === opponentUsername.toLowerCase()) ||
+                  (game.black?.username?.toLowerCase() === targetUsername.toLowerCase() && 
+                   game.white?.username?.toLowerCase() === opponentUsername.toLowerCase())) {
+                gameCount++;
+              }
+            }
+            
+            const existingCount = countries.get(countryCode) || 0;
+            countries.set(countryCode, existingCount + gameCount);
+          }
+        }
+      } catch (error) {
+        console.error(`Error loading player data for ${opponentUsername}:`, error);
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error loading existing data for user:', error);
+  }
+  
+  return countries;
+}
+
 // 既存データを読み込む関数
 async function loadExistingData(): Promise<Map<string, number>> {
   const countries = new Map<string, number>();
@@ -505,7 +601,8 @@ async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
   
   if (url.pathname === "/api/chess-data") {
-    const username = url.searchParams.get("username");
+    // サーバー起動時に入力されたユーザー名を使用
+    const username = CURRENT_USERNAME;
     const periodParam = url.searchParams.get("period") || "3";
     let period;
     
@@ -525,7 +622,7 @@ async function handler(req: Request): Promise<Response> {
     }
     
     if (!username) {
-      return new Response(JSON.stringify({ error: "Username is required" }), {
+      return new Response(JSON.stringify({ error: "Username not set at server startup" }), {
         status: 400,
         headers: { "Content-Type": "application/json" }
       });
@@ -556,10 +653,11 @@ async function handler(req: Request): Promise<Response> {
   }
   
   if (url.pathname === "/api/available-periods") {
-    const username = url.searchParams.get("username");
+    // サーバー起動時に入力されたユーザー名を使用
+    const username = CURRENT_USERNAME;
     
     if (!username) {
-      return new Response(JSON.stringify({ error: "Username is required" }), {
+      return new Response(JSON.stringify({ error: "Username not set at server startup" }), {
         status: 400,
         headers: { "Content-Type": "application/json" }
       });
@@ -589,10 +687,11 @@ async function handler(req: Request): Promise<Response> {
   }
   
   if (url.pathname === "/api/all-periods") {
-    const username = url.searchParams.get("username");
+    // サーバー起動時に入力されたユーザー名を使用
+    const username = CURRENT_USERNAME;
     
     if (!username) {
-      return new Response(JSON.stringify({ error: "Username is required" }), {
+      return new Response(JSON.stringify({ error: "Username not set at server startup" }), {
         status: 400,
         headers: { "Content-Type": "application/json" }
       });
@@ -623,9 +722,20 @@ async function handler(req: Request): Promise<Response> {
     }
   }
   
+  if (url.pathname === "/api/current-user") {
+    return new Response(JSON.stringify({
+      username: CURRENT_USERNAME
+    }), {
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    });
+  }
+  
   if (url.pathname === "/api/existing-data") {
     try {
-      const countries = await loadExistingData();
+      const countries = await loadExistingDataForUser(CURRENT_USERNAME);
       return new Response(JSON.stringify({
         countries: Array.from(countries.entries())
       }), {
@@ -670,5 +780,77 @@ async function handler(req: Request): Promise<Response> {
   });
 }
 
-console.log("Chess.com Map Server starting on http://localhost:8080");
-Deno.serve({ port: 8080 }, handler);
+// コマンドライン入力を読み取る関数
+async function promptForUsername(): Promise<string> {
+  console.log("Chess.com Map Server");
+  console.log("=====================================");
+  
+  while (true) {
+    console.log("\nChess.com のユーザー名を入力してください:");
+    
+    const decoder = new TextDecoder();
+    const buffer = new Uint8Array(1024);
+    
+    const stdin = Deno.stdin;
+    const n = await stdin.read(buffer);
+    
+    if (n === null) {
+      continue;
+    }
+    
+    const input = decoder.decode(buffer.subarray(0, n)).trim();
+    
+    if (input.length > 0) {
+      return input;
+    }
+    
+    console.log("ユーザー名が入力されていません。もう一度入力してください。");
+  }
+}
+
+// メイン起動関数
+async function startServer() {
+  // ユーザー名入力（必須）
+  const username = await promptForUsername();
+  CURRENT_USERNAME = username; // グローバル変数に保存
+  
+  console.log(`\n入力されたユーザー名: ${username}`);
+  
+  // 指定されたユーザーのデータ存在確認
+  try {
+    const userCountries = await loadExistingDataForUser(username);
+    if (userCountries.size > 0) {
+      const totalGames = Array.from(userCountries.values()).reduce((a, b) => a + b, 0);
+      console.log(`\n${username} の既存データ:`);
+      console.log(`  対戦国数: ${userCountries.size}カ国`);
+      console.log(`  総対戦数: ${totalGames}ゲーム`);
+      
+      // 上位10カ国のデータを表示
+      console.log("\n=== 対戦数上位10カ国 ===");
+      const sortedCountries = Array.from(userCountries.entries()).sort((a, b) => b[1] - a[1]);
+      sortedCountries.slice(0, 10).forEach(([countryCode, count], index) => {
+        console.log(`${(index + 1).toString().padStart(2)}. ${countryCode}: ${count}ゲーム`);
+      });
+      
+      if (sortedCountries.length > 10) {
+        console.log(`... 他 ${sortedCountries.length - 10}カ国`);
+      }
+    } else {
+      console.log(`\n${username} のデータが見つかりませんでした。`);
+      console.log("ブラウザから新規データを取得してください。");
+    }
+  } catch (error) {
+    console.log(`\nデータ読み込みエラー: ${error.message}`);
+  }
+  
+  console.log("\n=====================================");
+  console.log("Chess.com Map Server starting on http://localhost:8080");
+  console.log("ブラウザで http://localhost:8080 を開いてください。");
+  console.log("=====================================\n");
+  
+  // サーバー起動
+  Deno.serve({ port: 8080 }, handler);
+}
+
+// サーバー起動
+startServer();

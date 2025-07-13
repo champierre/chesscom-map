@@ -148,6 +148,7 @@ let map;
 let worldCountriesData = null;
 let countryLayers = [];
 let clickMarkers = [];
+let currentUsername = null;
 
 // 世界の国境データを読み込み
 async function loadWorldCountriesData() {
@@ -186,7 +187,7 @@ async function initMap() {
 }
 
 // Deno APIからデータを取得
-async function fetchChessData(username, period = 3) {
+async function fetchChessData(period = 3) {
     try {
         let apiUrl;
         
@@ -199,9 +200,9 @@ async function fetchChessData(username, period = 3) {
             
             // 選択された期間をカンマ区切りで送信
             const periodsParam = selectedPeriods.map(p => `${p.year}/${String(p.month).padStart(2, '0')}`).join(',');
-            apiUrl = `/api/chess-data?username=${encodeURIComponent(username)}&period=selected&periods=${encodeURIComponent(periodsParam)}`;
+            apiUrl = `/api/chess-data?period=selected&periods=${encodeURIComponent(periodsParam)}`;
         } else {
-            apiUrl = `/api/chess-data?username=${encodeURIComponent(username)}&period=${period}`;
+            apiUrl = `/api/chess-data?period=${period}`;
         }
         
         const response = await fetch(apiUrl);
@@ -279,7 +280,7 @@ function addCountriesToMap(countries) {
     countryLayers = [];
     
     if (!worldCountriesData || !worldCountriesData.features) {
-        addMarkersToMapFallback(countries);
+        // GeoJSONデータがない場合はマーカーを使用せず、何も表示しない
         return;
     }
     
@@ -346,46 +347,19 @@ function addCountriesToMap(countries) {
                 `).addTo(map);
                 
                 countryLayers.push(layer);
-            } else {
-                // GeoJSONで見つからない場合はマーカーを使用
-                addMarkerForCountry(countryCode, count, countryInfo);
             }
+            // マーカーでのフォールバック表示は削除
         }
     });
 }
 
-// フォールバック：マーカー方式
-function addMarkersToMapFallback(countries) {
-    countries.forEach((count, countryCode) => {
-        // 不明（XX）と欧州連合（EU）は地図上に表示しない
-        if (countryCode === 'XX' || countryCode === 'EU') {
-            return;
-        }
-        
-        const countryInfo = countryCoordinates[countryCode];
-        if (countryInfo) {
-            addMarkerForCountry(countryCode, count, countryInfo);
-        }
-    });
-}
-
-// 国にマーカーを追加
-function addMarkerForCountry(countryCode, count, countryInfo) {
-    const marker = L.marker([countryInfo.lat, countryInfo.lng])
-        .addTo(map)
-        .bindPopup(`
-            <div class="leaflet-popup-content">
-                <div class="popup-flag">${getFlagEmoji(countryCode)}</div>
-                <div class="popup-country">${countryInfo.name}</div>
-                <div class="popup-games">${count} ゲーム</div>
-            </div>
-        `);
-    
-    countryLayers.push(marker);
-}
+// 不要になったマーカー関連の関数を削除
 
 // 国にピンを立てる（青いマーカー）
 function addPinToCountry(countryCode, count, countryInfo) {
+    // 既存のクリックマーカーをクリア（1つの国のマーカーのみ表示）
+    clearClickMarkers();
+    
     const blueIcon = L.icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -403,7 +377,8 @@ function addPinToCountry(countryCode, count, countryInfo) {
                 <div class="popup-country">${countryInfo.name}</div>
                 <div class="popup-games">${count} ゲーム</div>
             </div>
-        `);
+        `)
+        .openPopup(); // 自動的にポップアップを開く
     
     clickMarkers.push(marker);
     
@@ -424,6 +399,7 @@ function clearClickMarkers() {
 // 国リストを表示
 function displayCountryList(countries) {
     const countriesList = document.getElementById('countries');
+    
     countriesList.innerHTML = '';
     
     // 国を対戦数でソート
@@ -433,6 +409,7 @@ function displayCountryList(countries) {
         const countryInfo = countryCoordinates[countryCode];
         if (!countryInfo) return;
         
+        // リスト表示用
         const li = document.createElement('li');
         li.innerHTML = `
             <div class="country-flag">${getFlagEmoji(countryCode)}</div>
@@ -452,14 +429,14 @@ function displayCountryList(countries) {
 }
 
 // ローディング状態を更新する関数
-function updateLoadingStatus(status, details = '', progress = '') {
+function updateLoadingStatus(message) {
     const loadingStatus = document.getElementById('loadingStatus');
     const loadingDetails = document.getElementById('loadingDetails');
     const loadingProgress = document.getElementById('loadingProgress');
     
-    if (loadingStatus) loadingStatus.textContent = status;
-    if (loadingDetails) loadingDetails.textContent = details;
-    if (loadingProgress) loadingProgress.textContent = progress;
+    if (loadingStatus) loadingStatus.textContent = message;
+    if (loadingDetails) loadingDetails.textContent = '';
+    if (loadingProgress) loadingProgress.textContent = '';
 }
 
 // 選択された期間を取得する関数
@@ -477,12 +454,26 @@ function getSelectedPeriods() {
     return selectedPeriods;
 }
 
+// 現在のユーザー名を取得して表示
+async function loadCurrentUsername() {
+    try {
+        const response = await fetch('/api/current-user');
+        const data = await response.json();
+        if (data.username) {
+            currentUsername = data.username;
+            document.getElementById('currentUsername').textContent = currentUsername;
+            return currentUsername;
+        }
+    } catch (error) {
+        console.error('Failed to load current username:', error);
+    }
+    return null;
+}
+
 // メイン処理
 document.getElementById('fetchButton').addEventListener('click', async () => {
-    const username = document.getElementById('username').value.trim();
-    
-    if (!username) {
-        alert('ユーザーIDを入力してください');
+    if (!currentUsername) {
+        alert('ユーザー名が設定されていません');
         return;
     }
     
@@ -503,26 +494,19 @@ document.getElementById('fetchButton').addEventListener('click', async () => {
     button.disabled = true;
     loading.classList.remove('hidden');
     error.classList.add('hidden');
-    stats.classList.add('hidden');
-    countryList.classList.add('hidden');
+    // stats と countryList は表示したままにする
     
-    // 既存のクリックマーカーをクリア
+    // 既存のクリックマーカーをクリア（データ取得開始時）
     clearClickMarkers();
     
     try {
-        // ユーザーIDを保存
-        saveUsername(username);
         
         // ローディング状態の更新
         const periodText = selectedPeriods.map(p => `${p.year}年${String(p.month).padStart(2, '0')}月`).join(', ');
-        updateLoadingStatus(
-            'Chess.comからデータを取得中...',
-            `ユーザー: ${username}`,
-            `対象期間: ${periodText} (${selectedPeriods.length}期間)`
-        );
+        updateLoadingStatus(`Chess.comからデータを取得中... 対象期間: ${periodText} (${selectedPeriods.length}期間)`);
         
         // データ取得（選択された期間）
-        const result = await fetchChessData(username, 'selected');
+        const result = await fetchChessData('selected');
         const games = result.games;
         const countries = result.countries;
         
@@ -531,28 +515,19 @@ document.getElementById('fetchButton').addEventListener('click', async () => {
         }
         
         // 地図処理中のローディング状態更新
-        updateLoadingStatus(
-            '地図データを処理中...',
-            `対戦国数: ${countries.size}カ国`,
-            `総対戦数: ${games.length}ゲーム`
-        );
+        updateLoadingStatus(`地図データを処理中... 対戦国数: ${countries.size}カ国, 総対戦数: ${games.length}ゲーム`);
         
         // 新規データ取得後、既存データと合わせて地図を更新
-        updateLoadingStatus(
-            '既存データと合併中...',
-            `新規取得データ: ${countries.size}カ国`,
-            '全データを地図に反映中...'
-        );
+        updateLoadingStatus(`既存データと合併中... 新規取得データ: ${countries.size}カ国, 全データを地図に反映中...`);
         
         // 既存データを再読み込みして最新状態で地図を更新
         await updateMapWithAllData();
         
+        // 期間選択の表示を更新
+        await displayPeriodSelection();
+        
         // 最終処理中のローディング状態更新
-        updateLoadingStatus(
-            '処理完了',
-            `データ取得が完了しました`,
-            ''
-        );
+        updateLoadingStatus('処理完了 - データ取得が完了しました');
         
     } catch (err) {
         error.textContent = `エラー: ${err.message}`;
@@ -564,14 +539,14 @@ document.getElementById('fetchButton').addEventListener('click', async () => {
 });
 
 // 全期間をチェックボックス付きで表示する関数
-async function displayPeriodSelection(username) {
-    if (!username) {
+async function displayPeriodSelection() {
+    if (!currentUsername) {
         document.getElementById('periodSelection').classList.add('hidden');
         return;
     }
     
     try {
-        const response = await fetch(`/api/all-periods?username=${encodeURIComponent(username)}`);
+        const response = await fetch('/api/all-periods');
         const data = await response.json();
         
         if (response.ok && data.allPeriods && data.allPeriods.length > 0) {
@@ -583,9 +558,26 @@ async function displayPeriodSelection(username) {
             // 既存期間をセットに変換
             const existingPeriodsSet = new Set(data.existingPeriods || []);
             
+            // 現在のチェック状態を保存（更新時に維持するため）
+            const currentCheckedStates = new Map();
+            const existingCheckboxes = document.querySelectorAll('#periodsList input[type="checkbox"]');
+            existingCheckboxes.forEach(checkbox => {
+                const key = `${checkbox.dataset.year}-${checkbox.dataset.month}`;
+                currentCheckedStates.set(key, checkbox.checked);
+            });
+            
             periodsList.innerHTML = data.allPeriods.map(periodObj => {
                 const exists = existingPeriodsSet.has(periodObj.period);
-                const checked = !exists; // データがない期間はデフォルトでチェック
+                const key = `${periodObj.year}-${periodObj.month}`;
+                
+                // 更新時は現在のチェック状態を維持、初回は未取得期間をチェック
+                let checked;
+                if (currentCheckedStates.has(key)) {
+                    checked = currentCheckedStates.get(key);
+                } else {
+                    checked = !exists; // データがない期間はデフォルトでチェック
+                }
+                
                 const statusClass = exists ? 'status-exists' : 'status-missing';
                 const statusText = exists ? '取得済み' : '未取得';
                 
@@ -637,22 +629,6 @@ function setupSelectAllFunctionality() {
     });
 }
 
-// ユーザーID保存・復元機能
-function saveUsername(username) {
-    try {
-        localStorage.setItem('chesscom-last-username', username);
-    } catch (e) {
-        // localStorage not available
-    }
-}
-
-function loadUsername() {
-    try {
-        return localStorage.getItem('chesscom-last-username') || '';
-    } catch (e) {
-        return '';
-    }
-}
 
 // 既存データを読み込んで地図に表示
 async function loadExistingDataAndDisplay() {
@@ -671,6 +647,7 @@ async function loadExistingDataAndDisplay() {
             
             // 国リストを表示
             displayCountryList(countries);
+            document.getElementById('countryList').classList.remove('hidden');
             
             console.log(`既存データを読み込みました: ${countries.size}カ国, ${Array.from(countries.values()).reduce((a, b) => a + b, 0)}ゲーム`);
         }
@@ -719,30 +696,15 @@ function updateStats(countries) {
 }
 
 // 初期化
-initMap().then(() => {
-    // 地図初期化後に既存データを読み込み
-    loadExistingDataAndDisplay();
+initMap().then(async () => {
+    // 地図初期化後にユーザー名と既存データを読み込み
+    await loadCurrentUsername();
+    await loadExistingDataAndDisplay();
+    
+    // ユーザー名が読み込まれた場合、期間選択を表示
+    if (currentUsername) {
+        await displayPeriodSelection();
+    }
 }).catch(error => {
     console.error('Map initialization failed:', error);
-});
-
-// ページ読み込み時にユーザーIDを復元
-document.addEventListener('DOMContentLoaded', () => {
-    const savedUsername = loadUsername();
-    if (savedUsername) {
-        document.getElementById('username').value = savedUsername;
-        // 期間選択を表示
-        displayPeriodSelection(savedUsername);
-    }
-    
-    // ユーザーID入力フィールドのイベントリスナー
-    const usernameInput = document.getElementById('username');
-    usernameInput.addEventListener('input', (e) => {
-        const username = e.target.value.trim();
-        if (username) {
-            displayPeriodSelection(username);
-        } else {
-            document.getElementById('periodSelection').classList.add('hidden');
-        }
-    });
 });
